@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Análisis de Compatibilidad Generacional</title>
+  <!-- Vue 3 CDN -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Style -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <h1>Análisis de Compatibilidad Generacional</h1>
+    
+    <div class="calculator">
+      <h2>Cálculo del Índice de Diferencia Generacional (IDG)</h2>
+      <p>Ingrese las edades de las personas A y B en años. El programa calculará el IDG en días.</p>
+      <p class="note">Nota: El IDG es un indicador de la diferencia generacional entre dos personas.</p>
+      
+      <div class="input-group">
+        <label for="ageA">Edad de la persona A:</label>
+        <input id="ageA" type="number" v-model.number="ageA" min="1" max="120">
+      </div>
+      
+      <div class="input-group">
+        <label for="ageB">Edad de la persona B:</label>
+        <input id="ageB" type="number" v-model.number="ageB" min="1" max="120">
+      </div>
+      
+      <button @click="calculate">Calcular</button>
+    </div>
+    
+    <div v-if="results.calculated" class="results-container">
+      <div class="result-card">
+        <h2>Resultados</h2>
+        <p><strong>Índice de Diferencia Generacional (IDG):</strong> {{ results.idg }}%</p>
+        <p class="interpretation">{{ results.interpretation }}</p>
+        <p><strong>Probabilidad de separación:</strong> {{ results.probability }}%</p>
+        <p class="source">Fuente: Estudio de la Universidad de Emory (EE.UU.), muestra de 3,000 parejas.</p>
+      </div>
+      
+      <div class="charts-container">
+        <div class="chart-container">
+          <h3>Probabilidad de separación por años de relación</h3>
+          <canvas ref="probabilityChart"></canvas>
+        </div>
+        
+        <div class="chart-container">
+          <h3>Riesgo de separación por diferencia de edad</h3>
+          <canvas ref="riskChart"></canvas>
+          <div v-if="results.ageDifference" class="current-difference">
+            <p>Diferencia actual: {{ results.ageDifference }} años ({{ results.risk }}% de riesgo)</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const { createApp, ref, onMounted, nextTick } = Vue;
+    
+    createApp({
+      setup() {
+        const ageA = ref(null);
+        const ageB = ref(null);
+        const results = ref({
+          calculated: false,
+          idg: 0,
+          interpretation: '',
+          probability: 0,
+          ageDifference: 0,
+          risk: 0
+        });
+        const probabilityChart = ref(null);
+        const riskChart = ref(null);
+        
+        // Inicializar gráficos cuando el componente está montado
+        onMounted(() => {
+          // No necesitamos inicializar los gráficos aquí porque se crearán después del cálculo
+        });
+        
+        const calculateIDG = (edadA, edadB) => {
+          const diferencia = Math.abs(edadA - edadB);
+          const edadMayor = Math.max(edadA, edadB);
+          const idg = (diferencia / edadMayor) * 100.0;
+          return Math.round(idg * 100) / 100;
+        };
+        
+        const getInterpretation = (idg) => {
+          if (idg < 10) {
+            return "La diferencia generacional es muy baja.\nLas parejas con menos de 10% de IDG suelen tener mayor compatibilidad emocional y una tasa de éxito alta.";
+          } else if (idg < 20) {
+            return "La diferencia generacional es baja.\nLas relaciones con menos de 20% de IDG tienen un riesgo de separación ligeramente mayor, pero aún dentro de parámetros saludables.";
+          } else if (idg < 30) {
+            return "La diferencia generacional es moderada.\nLas parejas con menos de 30% de IDG indican que el riesgo de separación ronda el 39%.";
+          } else if (idg < 40) {
+            return "La diferencia generacional es alta.\nLas parejas con menos del 40% de IDG indican que el el riesgo de separación ronda el 74%.\nEstas parejas enfrentan desafíos cognitivos, sociales y generacionales significativos.";
+          } else {
+            return "La diferencia generacional es muy alta.\nSegún estudios longitudinales, el riesgo de separación es cercano al 95% en parejas con diferencias mayores al 40% (IDG). La compatibilidad suele verse afectada por etapas vitales dispares.\nEstas parejas enfrentan desafíos cognitivos, sociales y generacionales significativos.";
+          }
+        };
+        
+        const modeloLogistico = (year) => {
+          const L = 100.0;
+          const x0 = 15.0;
+          const k = 0.25;
+          
+          if (year <= 1) {
+            return 3.0;
+          } else if (year <= 5) {
+            return 3.0 + (18.0 - 3.0) * (year - 1) / (5 - 1);
+          } else {
+            let prob = L / (1 + Math.exp(-k * (year - x0)));
+            const factorAjuste10 = 39.0 / (L / (1 + Math.exp(-k * (10 - x0))));
+            const factorAjuste20 = 95.0 / (L / (1 + Math.exp(-k * (20 - x0))));
+            const peso20 = Math.min(1.0, (year - 10) / (20 - 10));
+            const factorAjuste = factorAjuste10 * (1 - peso20) + factorAjuste20 * peso20;
+            return Math.min(99.9, prob * factorAjuste);
+          }
+        };
+        
+        const getProbability = (ageDifference) => {
+          const years = ageDifference / 365;
+          const roundedYear = Math.ceil(years);
+          const probability = modeloLogistico(roundedYear);
+          return Math.round(probability * 10) / 10;
+        };
+        
+        const calculateRisk = (difference) => {
+          const a = 3;
+          const b = 0.15;
+          let riesgo = a + (Math.pow(difference, 1.5)) * b;
+          return Math.min(Math.round(riesgo * 100) / 100, 95.0);
+        };
+        
+        const getProbabilities = () => {
+          const probabilities = {};
+          for (let year = 1; year <= 30; year++) {
+            probabilities[year] = modeloLogistico(year);
+          }
+          return probabilities;
+        };
+        
+        const getRiskData = () => {
+          const risks = [];
+          for (let age = 0; age <= 30; age++) {
+            risks.push(calculateRisk(age));
+          }
+          return risks;
+        };
+        
+        const renderCharts = () => {
+          // Destruir gráficos existentes si los hay
+          if (window.probabilityChartInstance) {
+            window.probabilityChartInstance.destroy();
+          }
+          if (window.riskChartInstance) {
+            window.riskChartInstance.destroy();
+          }
+          
+          // Renderizar gráfico de probabilidad
+          const probCtx = probabilityChart.value.getContext('2d');
+          const probabilities = getProbabilities();
+          const years = Object.keys(probabilities);
+          const values = Object.values(probabilities);
+          
+          window.probabilityChartInstance = new Chart(probCtx, {
+            type: 'line',
+            data: {
+              labels: years,
+              datasets: [{
+                label: 'Probabilidad de separación (%)',
+                data: values,
+                borderColor: '#42b983',
+                backgroundColor: 'rgba(66, 185, 131, 0.1)',
+                borderWidth: 2,
+                tension: 0.4,
+                fill: true
+              }]
+            },
+            options: {
+              responsive: true,
+              plugins: {
+                legend: {
+                  position: 'top',
+                },
+                tooltip: {
+                  callbacks: {
+                    label: function(context) {
+                      return ` ${context.parsed.y.toFixed(1)}%`;
+                    }
+                  }
+                }
+              },
+              scales: {
+                y: {
+                  beginAtZero: true,
+                  max: 100,
+                  title: {
+                    display: true,
+                    text: 'Probabilidad (%)'
+                  }
+                },
+                x: {
+                  title: {
+                    display: true,
+                    text: 'Años de relación'
+                  }
+                }
+              }
+            }
+          });
+          
+          // Renderizar gráfico de riesgo
+          const riskCtx = riskChart.value.getContext('2d');
+          const ages = Array.from({length: 31}, (_, i) => i);
+          const risks = getRiskData();
+          
+          window.riskChartInstance = new Chart(riskCtx, {
+            type: 'bar',
+            data: {
+              labels: ages,
+              datasets: [{
+                label: 'Riesgo de separación (%)',
+                data: risks,
+                backgroundColor: 'rgba(231, 76, 60, 0.6)',
+                borderColor: 'rgba(231, 76, 60, 1)',
+                borderWidth: 1
+              }]
+            },
+            options: {
+              responsive: true,
+              plugins: {
+                legend: {
+                  position: 'top',
+                },
+                tooltip: {
+                  callbacks: {
+                    label: function(context) {
+                      return ` ${context.parsed.y.toFixed(1)}%`;
+                    }
+                  }
+                }
+              },
+              scales: {
+                y: {
+                  beginAtZero: true,
+                  max: 100,
+                  title: {
+                    display: true,
+                    text: 'Riesgo (%)'
+                  }
+                },
+                x: {
+                  title: {
+                    display: true,
+                    text: 'Diferencia de edad (años)'
+                  }
+                }
+              }
+            }
+          });
+        };
+        
+        const calculate = () => {
+          if (!ageA.value || !ageB.value) {
+            alert('Por favor ingrese ambas edades');
+            return;
+          }
+          
+          const ageADays = ageA.value * 365;
+          const ageBDays = ageB.value * 365;
+          const ageDifference = Math.abs(ageADays - ageBDays);
+          const ageDifferenceYears = Math.round(ageDifference / 365);
+          
+          const idg = calculateIDG(ageADays, ageBDays);
+          const interpretation = getInterpretation(idg);
+          const probability = getProbability(ageDifference);
+          const risk = calculateRisk(ageDifferenceYears);
+          
+          results.value = {
+            calculated: true,
+            idg,
+            interpretation,
+            probability,
+            ageDifference: ageDifferenceYears,
+            risk
+          };
+          
+          // Esperar a que el DOM se actualice antes de renderizar los gráficos
+          nextTick(() => {
+            renderCharts();
+          });
+        };
+        
+        return {
+          ageA,
+          ageB,
+          results,
+          probabilityChart,
+          riskChart,
+          calculate
+        };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
