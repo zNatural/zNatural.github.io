@@ -14,9 +14,9 @@
 
     <div class="calculator">
       <h2>Cálculo de Riesgo de Separación</h2>
-      <p class="note">Este cálculo se basa en un estudio sobre matrimonios heterosexuales realizado por la Universidad de Emory (EE.UU.).
-        Aunque fue diseñado para matrimonios, sus hallazgos pueden ofrecer una orientación aproximada también para parejas no casadas,
-        aunque con menor precisión.</p>
+      <p class="note">
+        Este cálculo se basa en un estudio sobre matrimonios heterosexuales realizado por la Universidad de Emory (EE.UU.). Aunque fue diseñado para matrimonios, sus hallazgos pueden ofrecer una orientación aproximada también para parejas no casadas, aunque con menor precisión.
+      </p>
 
       <div class="input-group">
         <label for="ageA">Edad de la persona A:</label>
@@ -29,15 +29,15 @@
       </div>
 
       <div class="input-group">
-        <label><input type="checkbox" v-model="hasChildren">Tienen hijos</label>
+        <label><input type="checkbox" v-model="hasChildren">Tienen hijos <span class="tooltip" title="Las parejas con hijos suelen mostrar mayor estabilidad.">ⓘ</span></label>
       </div>
 
       <div class="input-group">
-        <label><input type="checkbox" v-model="hadHoneymoon">Tuvieron luna de miel</label>
+        <label><input type="checkbox" v-model="hadHoneymoon">Tuvieron luna de miel <span class="tooltip" title="Una luna de miel se asocia con mayor inversión emocional y compromiso.">ⓘ</span></label>
       </div>
 
       <div class="input-group">
-        <label for="religion">Asistencia religiosa:</label>
+        <label for="religion">Asistencia religiosa: <span class="tooltip" title="La práctica religiosa frecuente está relacionada con menor tasa de divorcio.">ⓘ</span></label>
         <select id="religion" v-model="religion">
           <option value="nunca">Nunca</option>
           <option value="a veces">A veces</option>
@@ -46,7 +46,25 @@
       </div>
 
       <div class="input-group">
-        <label for="relationshipYears">Años de relación (Opcional):</label>
+        <label for="educationA">Nivel educativo de persona A: <span class="tooltip" title="Mayor educación se asocia con menor probabilidad de separación.">ⓘ</span></label>
+        <select id="educationA" v-model="educationA">
+          <option value="bajo">Bajo (sin estudios o primaria)</option>
+          <option value="medio">Medio (secundaria completa)</option>
+          <option value="alto">Alto (universitario o superior)</option>
+        </select>
+      </div>
+
+      <div class="input-group">
+        <label for="educationB">Nivel educativo de persona B: <span class="tooltip" title="Mayor educación se asocia con menor probabilidad de separación.">ⓘ</span></label>
+        <select id="educationB" v-model="educationB">
+          <option value="bajo">Bajo (sin estudios o primaria)</option>
+          <option value="medio">Medio (secundaria completa)</option>
+          <option value="alto">Alto (universitario o superior)</option>
+        </select>
+      </div>
+
+      <div class="input-group">
+        <label for="relationshipYears">Años de relación (Opcional): <span class="tooltip" title="Relaciones más duraderas tienden a tener menor riesgo de separación.">ⓘ</span></label>
         <input id="relationshipYears" type="number" v-model.number="relationshipYears" min="0" max="100">
       </div>
 
@@ -84,10 +102,18 @@
         const hasChildren = ref(false);
         const hadHoneymoon = ref(false);
         const religion = ref("nunca");
+        const educationA = ref("medio");
+        const educationB = ref("medio");
         const results = ref({ calculated: false, ageDifference: 0, risk: 0, idg: 0, interpretation: '' });
         const riskChart = ref(null);
 
-        const calculateRisk = (differenceYears, hasChildren, hadHoneymoon, religion, relationshipYears) => {
+        const adjustEducationRisk = (level) => {
+          if (level === "alto") return 0.85;
+          if (level === "bajo") return 1.15;
+          return 1.0;
+        };
+
+        const calculateRisk = (differenceYears, hasChildren, hadHoneymoon, religion, relationshipYears, eduA, eduB) => {
           const baseHR = 1.08;
           const baseRisk = 20.0;
           const relativeRisk = Math.pow(baseHR, differenceYears);
@@ -100,6 +126,8 @@
 
           if (relationshipYears && relationshipYears >= 5) adjustedRisk *= 0.9;
           if (relationshipYears && relationshipYears >= 10) adjustedRisk *= 0.85;
+
+          adjustedRisk *= adjustEducationRisk(eduA) * adjustEducationRisk(eduB);
 
           return Math.min(Math.round(adjustedRisk * 10) / 10, 95.0);
         };
@@ -117,13 +145,13 @@
           } else if (diff <= 5) {
             return "Compatibilidad buena. Aunque hay pequeñas diferencias generacionales, estas rara vez afectan significativamente la relación.";
           } else if (diff <= 10) {
-            return "Compatibilidad moderada. Podrían existir desafíos relacionados con expectativas de vida o estilos de vida.";
+            return "Compatibilidad moderada. Podrían existir desafíos relacionados con expectativas vitales o estilos de vida.";
           } else if (diff <= 15) {
             return "Compatibilidad reducida. Aumenta el potencial de tensiones relacionadas con visión de futuro, energía y metas personales.";
           } else if (diff <= 20) {
-            return "Compatibilidad baja. La pareja puede enfrentar contrastes notables en intereses, costumbres y etapas de la vida.";
+            return "Compatibilidad baja. La pareja puede enfrentar contrastes notables en intereses, costumbres y etapas vitales.";
           } else {
-            return "Compatibilidad muy baja. Las grandes diferencias generacionales pueden reflejarse en desafíos cognitivos, culturales y emocionales persistentes.";
+            return "Compatibilidad muy baja. Las grandes diferencias generacionales suelen reflejarse en desafíos cognitivos, culturales y emocionales persistentes.";
           }
         };
 
@@ -134,7 +162,7 @@
           }
 
           const labels = Array.from({ length: 21 }, (_, i) => i);
-          const data = labels.map(diff => calculateRisk(diff, hasChildren.value, hadHoneymoon.value, religion.value, relationshipYears.value));
+          const data = labels.map(diff => calculateRisk(diff, hasChildren.value, hadHoneymoon.value, religion.value, relationshipYears.value, educationA.value, educationB.value));
 
           window.riskChartInstance = new Chart(ctx, {
             type: 'line',
@@ -189,7 +217,7 @@
           }
 
           const diff = Math.abs(ageA.value - ageB.value);
-          const risk = calculateRisk(diff, hasChildren.value, hadHoneymoon.value, religion.value, relationshipYears.value);
+          const risk = calculateRisk(diff, hasChildren.value, hadHoneymoon.value, religion.value, relationshipYears.value, educationA.value, educationB.value);
           const idg = calculateIDG(ageA.value, ageB.value);
           const interpretation = getInterpretation(diff);
 
@@ -211,6 +239,8 @@
           hasChildren,
           hadHoneymoon,
           religion,
+          educationA,
+          educationB,
           results,
           calculate,
           riskChart

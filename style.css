@@ -68,6 +68,7 @@ input {
 
 input[type="checkbox"] {
     margin-right: 8px;
+    width: auto;
 }
 
 button {
@@ -126,4 +127,10 @@ button:hover {
     margin-top: 20px;
     font-size: 0.9em;
     color: #666;
+}
+
+.tooltip {
+    cursor: help;
+    color: #3498db;
+    font-weight: bold;
 }
